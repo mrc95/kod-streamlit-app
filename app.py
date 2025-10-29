@@ -1,0 +1,384 @@
+#%%
+import streamlit as st
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from numba import njit
+import plotly.graph_objects as go
+from scipy.interpolate import griddata
+
+st.set_page_config(page_title="KODA/KODD Pricing Dashboard", layout="wide")
+
+@njit()
+def CND(x):
+    """
+    Cumulative normal distribution using Abramowitz and Stegun approximation,
+    (negligibile error if compared to scipy)
+    Needed as numba doesnt support scipy.
+
+    Args:
+        x (float or np.array): normal random variable [Nx1]
+
+    Returns:
+        float or np.array: [Nx1] np array of CNDs
+    """    
+    a1, a2, a3, a4, a5 = 0.319381530, -0.356563782, 1.781477937, -1.821255978, 1.330274429
+    gamma = 0.2316419
+    abs_x = np.abs(x)
+    t = 1 / (1 + gamma * abs_x)
+    poly = (a1 * t + a2 * t**2 + a3 * t**3 + a4 * t**4 + a5 * t**5)
+    exp_term = np.exp(-0.5 * abs_x**2) / np.sqrt(2 * np.pi)
+    result = 1 - exp_term * poly
+    enconder_a = np.where(x < 0, 1, 0)
+    enconder_b = np.where(x < 0, -1, 1)
+
+    return enconder_a + enconder_b*result 
+
+@njit
+def StandardBarrierOption(TypeFlag, S, X, H, K, Time, r, b, sigma, Fwd_Time):
+
+    # References:
+    #   Haug, Chapter 2.10.1
+
+    '''
+    
+    Typeflag is an integer build of three digits mapped according to the following order:
+
+    a) call / put  = 1 / 2
+    b) up   / down = 1 / 2
+    c) in   / out  = 1 / 2 
+    
+    ---> TypeFlag = abc
+
+    cui = 111 ---> up-and-in call
+    cuo = 112 ---> up-and-out call
+    cdi = 121 ---> down-and-in call
+    cdo = 122 ---> down-and-out call
+
+    pui = 211 ---> up-and-in put
+    puo = 212 ---> up-and-out put
+    pdi = 221 ---> down-and-in put
+    pdo = 222 ---> down-and-out put
+
+    '''
+
+    mu = (b - sigma ** 2 / 2) / sigma ** 2
+    lambda_ = np.sqrt(mu ** 2 + 2 * r / sigma ** 2)
+
+    d1 = (np.log(S / X) + (b + 0.5 * sigma ** 2) * Time) / (sigma * np.sqrt(Time))
+    d2 = d1 - (sigma * np.sqrt(Time))
+
+    X1 = np.log(S / X) / (sigma * np.sqrt(Time)) + (1 + mu) * sigma * np.sqrt(Time)
+    X2 = np.log(S / H) / (sigma * np.sqrt(Time)) + (1 + mu) * sigma * np.sqrt(Time)
+    y1 = np.log(H ** 2 / (S * X)) / (sigma * np.sqrt(Time)) + (1 + mu) * sigma * np.sqrt(Time)
+    y2 = np.log(H / S) / (sigma * np.sqrt(Time)) + (1 + mu) * sigma * np.sqrt(Time)
+    Z = np.log(H / S) / (sigma * np.sqrt(Time)) + lambda_ * sigma * np.sqrt(Time)
+
+    # Determine eta and phi based on TypeFlag
+    if TypeFlag in [121, 122]:
+        eta, phi = 1, 1
+    elif TypeFlag in [111, 112]:
+        eta, phi = -1, 1
+    elif TypeFlag in [221, 222]:
+        eta, phi = 1, -1
+    elif TypeFlag in [211, 212]:
+        eta, phi = -1, -1
+
+    # Calculate terms f1 to f6
+    f1 = (phi * S * np.exp((b - r) * Fwd_Time) * CND(phi * X1) -
+    phi * X * np.exp(-r * Fwd_Time) * CND(phi * X1 - phi * sigma * np.sqrt(Time)))
+    f2 = (phi * S * np.exp((b - r) * Fwd_Time) * CND(phi * X2) -
+    phi * X * np.exp(-r * Fwd_Time) * CND(phi * X2 - phi * sigma * np.sqrt(Time)))
+    f3 = (phi * S * np.exp((b - r) * Fwd_Time) * (H / S) ** (2 * (mu + 1)) *
+    CND(eta * y1) - phi * X * np.exp(-r * Fwd_Time) * (H / S) ** (2 * mu) *
+    CND(eta * y1 - eta * sigma * np.sqrt(Time)))
+    f4 = (phi * S * np.exp((b - r) * Fwd_Time) * (H / S) ** (2 * (mu + 1)) *
+    CND(eta * y2) - phi * X * np.exp(-r * Fwd_Time) * (H / S) ** (2 * mu) *
+    CND(eta * y2 - eta * sigma * np.sqrt(Time)))
+    f5 = (K * np.exp(-r * Fwd_Time) * (CND(eta * X2 - eta * sigma *
+    np.sqrt(Time)) - (H / S) ** (2 * mu) * CND(eta * y2 - eta *
+    sigma * np.sqrt(Time))))
+    f6 = (K * ((H / S) ** (mu + lambda_) * CND(eta * Z) + (H / S)**(mu - lambda_) *
+    CND(eta * Z - 2 * eta * lambda_ * sigma * np.sqrt(Time))))
+
+    # Determine StandardBarrier based on TypeFlag and conditions
+    # -------------------------------------------------------------------------------------------
+
+    if TypeFlag == 112:
+        # if S >= H:
+        #     BarrierOption = 0 # expires worthless
+        # else: 
+        #     if X >= H:
+        #         BarrierOption = f6
+        #     else:
+        #         BarrierOption = f1 - f2 + f3 - f4 + f6
+
+                
+        BarrierOption = np.where(
+            S >= H,
+            0, # expires worthless
+            np.where(X >= H, f6, f1 - f2 + f3 - f4 + f6)
+        )
+
+    # -------------------------------------------------------------------------------------------
+
+    elif TypeFlag == 111:
+        # if S >= H: # simple vanilla call
+        #     BarrierOption = S * np.exp((b-r)*Fwd_Time) * CND(d1) - X * np.exp((-r)*Fwd_Time) * CND(d2)
+        # else: 
+        #     if X >= H:
+        #         BarrierOption = f1 + f5
+        #     else:
+        #         BarrierOption = f2 - f3 + f4 + f5
+
+        BarrierOption = np.where(
+            S >= H,
+            S * np.exp((b-r)*Fwd_Time) * CND(d1) - X * np.exp((-r)*Fwd_Time) * CND(d2), # standard vanilla call
+            np.where(X >= H, f1 + f5, f2 - f3 + f4 + f5)
+        )
+
+    # -------------------------------------------------------------------------------------------
+    
+    elif TypeFlag == 122:
+        # if S >= H:
+        #     if X >= H:
+        #         BarrierOption = f1 - f3 + f6
+        #     else:
+        #         BarrierOption = f2 + f6 - f4
+        # else:
+        #     BarrierOption = 0 # expires worthless
+    
+        BarrierOption = np.where(
+            S >= H,
+            np.where(X >= H,  f1 - f3 + f6, f2 + f6 - f4),
+           0 # expires worthless
+        )
+
+    # -------------------------------------------------------------------------------------------
+    
+    elif TypeFlag == 121:
+        # if S >= H:
+        #     if X >= H:
+        #         BarrierOption = f3 + f5
+        #     else:
+        #         BarrierOption = f1 - f2 + f4 + f5
+        # else: # simple vanilla call
+        #     BarrierOption = S * np.exp((b-r)*Fwd_Time) * CND(d1) - X * np.exp((-r)*Fwd_Time) * CND(d2)
+
+        BarrierOption = np.where(
+            S >= H,
+            np.where(X >= H, f3 + f5, f1 - f2 + f4 + f5),
+           S * np.exp((b-r)*Fwd_Time) * CND(d1) - X * np.exp((-r)*Fwd_Time) * CND(d2) # simple vanilla call
+        )
+
+
+    # -------------------------------------------------------------------------------------------
+
+    elif TypeFlag == 222:
+        # if S >= H:
+        #     if X >= H:
+        #         BarrierOption = f1 - f2 + f3 - f4 + f6
+        #     else:
+        #         BarrierOption = f6
+        # else:
+        #     BarrierOption = 0 # expires worthless
+
+        BarrierOption = np.where(
+            S >= H,
+            np.where(X >= H, f1 - f2 + f3 - f4 + f6, f6),
+            0 # expires worthless
+        )
+
+    # -------------------------------------------------------------------------------------------
+
+    elif TypeFlag == 221:
+
+        BarrierOption = np.where(
+            S >= H,
+            np.where(X >= H, f2 - f3 + f4 + f5, f1 + f5),
+            X * np.exp((-r)*Fwd_Time) * CND(-d2) - S * np.exp((b-r)*Fwd_Time) * CND(-d1) # simple vanilla put
+        )
+
+    # -------------------------------------------------------------------------------------------
+
+    elif TypeFlag == 212:
+
+        BarrierOption = np.where(
+            S >= H,
+            0, # expires worthless
+            np.where(X >= H, f2 - f4 + f6, f1 - f3 + f6)
+        )
+
+    # -------------------------------------------------------------------------------------------
+
+    elif TypeFlag == 211:
+
+        BarrierOption = np.where(
+            S >= H,
+            (X * np.exp(-r * Fwd_Time) * CND(-d2) - S * np.exp((b - r) * Fwd_Time) * CND(-d1)), # simple vanilla put
+            np.where(X >= H, f1 - f2 + f4 + f5, f3 + f5)
+        )
+
+
+    # -------------------------------------------------------------------------------------------
+    
+    return np.maximum(BarrierOption, 0)
+mpl.rcParams['figure.dpi'] = 300
+
+
+# -------------------------
+
+# --- COLUMNS ---
+col1, col2 = st.columns([1, 2])
+
+# --- LEFT PANEL: Inputs ---
+with col1:
+    st.header("⚙️ Model Parameters")
+
+    colA, colB = st.columns(2)
+
+    with colA:
+        s0 = st.number_input("Spot Price", value=100.0)
+        rate = st.number_input("Interest Rate", value=0.03)
+        vol = st.number_input("Volatility", value=0.1)
+        div = st.number_input("Dividend Yield", value=0.0)
+        periods = st.slider("Number of Periods", 1, 52, 52)
+
+    with colB:
+        type_ = st.selectbox("Product Type", ["KODA", "KODD"])
+        strike = st.number_input("Strike", value=90.0 if type_ == "KODA" else 110.0)
+        barrier = st.number_input("Barrier", value=110.0 if type_ == "KODA" else 90.0)
+        gear = st.number_input("Gear", 0, 2, 2)
+        nominal = st.number_input("Nominal", value=10000.0)
+        periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 5)
+
+# --- CSS for full-height right column ---
+st.markdown("""
+<style>
+[data-testid="column"]:nth-of-type(2) {
+    height: 95vh;
+    display: flex;
+    flex-direction: column;
+}
+.full-height-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-between;
+}
+.full-height-container > div {
+    flex: 1;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# --- RIGHT PANEL ---
+with col2:
+    st.header("📈 MtM Profiles")
+    st.markdown('<div class="full-height">', unsafe_allow_html=True)
+    container_2d = st.container()
+    container_3d = st.container()
+
+    # --- GRID & calculations ---
+    spots = np.arange(0.8 * strike, 1.2 * barrier, 0.1) if type_ == "KODA" else np.arange(0.8 * barrier, 1.2 * strike, 0.1)
+    strips_mat = np.arange(1, periods + 1) / periods
+    guaranteed_mats = strips_mat[:periods_guaranteed]
+    sign_call, sign_put = (1, -1) if type_ == "KODA" else (-1, 1)
+    gear_call, gear_put = (1, gear) if type_ == "KODA" else (gear, 1)
+    call_type = 112 if type_ == "KODA" else 122
+    put_type = 212 if type_ == "KODA" else 222
+
+    Z = np.zeros((len(strips_mat), len(spots)))
+    strip_price_2d, call_price_2d, put_price_2d = [], [], []
+
+    for j, spot in enumerate(spots):
+        strip_price_per_spot, call_price_per_spot, put_price_per_spot = [], [], []
+        for i, t in enumerate(strips_mat):
+            maturity = t
+            nominal_ = nominal / periods
+            c_price_fwd = StandardBarrierOption(TypeFlag=111, S=spot, X=strike, H=1e-5, K=0,
+                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+            p_price_fwd = StandardBarrierOption(TypeFlag=211, S=spot, X=strike, H=1e-5, K=0,
+                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+            if t in guaranteed_mats:
+                c_price, p_price = c_price_fwd, p_price_fwd
+                strip_val = (sign_call * c_price + sign_put * p_price) * nominal_
+            else:
+                c_price = StandardBarrierOption(TypeFlag=call_type, S=spot, X=strike, H=barrier, K=0,
+                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                p_price = StandardBarrierOption(TypeFlag=put_type, S=spot, X=strike, H=barrier, K=0,
+                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                strip_val = (sign_call * gear_call * c_price + sign_put * gear_put * p_price) * nominal_
+
+            strip_price_per_spot.append(strip_val)
+            call_price_per_spot.append(sign_call * gear_call * c_price * nominal_)
+            put_price_per_spot.append(sign_put * gear_put * p_price * nominal_)
+        strip_price_2d.append(np.mean(strip_price_per_spot))
+        call_price_2d.append(np.mean(call_price_per_spot))
+        put_price_2d.append(np.mean(put_price_per_spot))
+
+    # --- Interactive chart ---
+    with container_2d:
+        
+        show_legs = st.toggle(
+            "Show Long / Short Legs", 
+            value=False, 
+            key="show_legs_toggle", 
+            help="Toggle to display individual legs alongside the combined MtM profile."
+        )
+
+        fig2d = go.Figure()
+
+        # Combined MtM
+        fig2d.add_trace(go.Scatter(
+            x=spots,
+            y=strip_price_2d,
+            mode='lines',
+            name=f"{type_} MtM",
+            line=dict(color='cyan', width=3),
+            hovertemplate="<b>Spot:</b> %{x:.2f}<br><b>MtM:</b> %{y:,.2f}<extra></extra>"
+        ))
+
+        # Legs if toggled on
+        if show_legs:
+            fig2d.add_trace(go.Scatter(
+                x=spots,
+                y=call_price_2d,
+                mode='lines',
+                name="Long Leg (Call)" if type_ == "KODA" else "Short Leg (Call)",
+                line=dict(color='lime', width=2, dash='dot'),
+                hovertemplate="<b>Spot:</b> %{x:.2f}<br><b>Call Leg:</b> %{y:,.2f}<extra></extra>"
+            ))
+            fig2d.add_trace(go.Scatter(
+                x=spots,
+                y=put_price_2d,
+                mode='lines',
+                name="Short Leg (Put)" if type_ == "KODA" else "Long Leg (Put)",
+                line=dict(color='magenta', width=2, dash='dot'),
+                hovertemplate="<b>Spot:</b> %{x:.2f}<br><b>Put Leg:</b> %{y:,.2f}<extra></extra>"
+            ))
+
+        # Reference lines
+        fig2d.add_vline(x=strike, line=dict(color="white", dash="dash"),
+                        annotation_text="Strike", annotation_position="top")
+        fig2d.add_vline(x=barrier, line=dict(color="orange", dash="dash"),
+                        annotation_text="Barrier", annotation_position="top")
+
+        fig2d.update_layout(
+            title=f"{type_} MtM Profile (Interactive)",
+            xaxis_title="Spot",
+            yaxis_title="MtM",
+            template="plotly_dark",
+            hovermode="x unified",
+            margin=dict(l=0, r=0, t=50, b=0),
+            legend=dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1)
+        )
+
+        st.plotly_chart(fig2d, use_container_width=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+
+
+# %%
