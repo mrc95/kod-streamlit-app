@@ -272,7 +272,7 @@ with col1:
 st.markdown("""
 <style>
 [data-testid="column"]:nth-of-type(2) {
-    height: 95vh;
+    height: 120vh;
     display: flex;
     flex-direction: column;
 }
