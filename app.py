@@ -304,7 +304,7 @@ with col2:
         around_b = np.arange(1.1 * strike, 1.01 * barrier, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
     else:
-        spots_ = np.arange(0.6 * barrier, 1.2 * strike, 1)
+        spots_ = np.arange(0.8 * barrier, 1.4 * strike, 1)
         around_b = np.arange(0.99 * barrier, 1.01*strike, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
 
