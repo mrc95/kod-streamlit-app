@@ -245,7 +245,7 @@ with col1:
         vol = st.number_input("Volatility", value=0.1)
         div = st.number_input("Dividend Yield", value=0.0)
         periods = st.slider("Number of Periods", 1, 52, 52)
-        periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 5)
+        periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 0)
 
     with colB:
         type_ = st.selectbox("Product Type", ["KODA", "KODD"])
@@ -497,8 +497,9 @@ with container_2d:
         #     "Margin Shock", 0.01, 0.1, 0.2,
         #     help="Specify shock level for worst MtM drop calculation"
         # )
-        strike_notional = np.where(spots <= barrier, strike * nominal * gear, 0) if type_ == 'KODA' else np.where(spots <= barrier,0, strike * nominal * gear)
-        spot_notional = np.where(spots <= barrier, spots * nominal * gear, 0) if type_ == 'KODA' else np.where(spots <= barrier,0, spots * nominal * gear)
+
+        strike_notional = np.where(spots_ <= barrier, strike * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, strike * nominal * gear)
+        spot_notional = np.where(spots_ <= barrier, spots_ * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, spots_ * nominal * gear)
 
         kod_mtm = dict(zip(spots, strip_price_))
         kod_delta = dict(zip(spots, delta_strip_))
@@ -510,60 +511,80 @@ with container_2d:
             try:
                 coeff = kod_delta[s]
 
-                tangent = kod_mtm[s] + coeff*(spots - s)
+                tangent = kod_mtm[s] + coeff * (spots - s)
                 tangent = dict(zip(spots, tangent))
-                tangent_plus = tangent[s*(1+shock)]
-                tangent_minus = tangent[s*(1-shock)]
+                tangent_plus = tangent[s * (1 + shock)]
+                tangent_minus = tangent[s * (1 - shock)]
 
-                true_delta[s] = -1*min(kod_mtm[s*(1+shock)] - kod_mtm[s], kod_mtm[s*(1-shock)] - kod_mtm[s])
-                proxy_delta[s] = -1*min(tangent_plus - tangent[s], tangent_minus - tangent[s])
+                true_delta[s] = -1 * min(kod_mtm[s * (1 + shock)] - kod_mtm[s],
+                                        kod_mtm[s * (1 - shock)] - kod_mtm[s])
+                proxy_delta[s] = -1 * min(tangent_plus - tangent[s],
+                                        tangent_minus - tangent[s])
 
             except Exception as e:
                 print(e)
 
+        x_vals = np.array(list(true_delta.keys()))
+        y_true = np.array(list(true_delta.values()))
+        y_proxy = np.array(list(proxy_delta.values()))
+
+        # Compute % diff wrt Actual
+        pct_diff_proxy = np.round(100 * (y_proxy - y_true) / y_true, 2)
+        pct_diff_strike = np.round(100 * ((strike_notional * shock) - y_true) / y_true, 2)
+        pct_diff_spot = np.round(100 * ((spot_notional * shock) - y_true) / y_true, 2)
+
         fig = go.Figure()
 
+        # Actual
         fig.add_trace(go.Scatter(
-            x=list(true_delta.keys()),
-            y=list(true_delta.values()),
+            x=x_vals,
+            y=y_true,
             mode='lines',
             name='Actual',
             line=dict(color='cyan', width=2),
-            hovertemplate="<b>Actual Δ:</b> %{y:,.2f}<extra></extra>"
+            hovertemplate="<b>Actual:</b> %{y:,.0f}<extra></extra>"
         ))
 
+        # Δ Proxy
         fig.add_trace(go.Scatter(
-            x=list(proxy_delta.keys()),
-            y=list(proxy_delta.values()),
+            x=x_vals,
+            y=y_proxy,
             mode='lines',
             name='Δ Proxy',
             line=dict(color='orange', width=2),
-            hovertemplate="<b>Proxy Δ:</b> %{y:,.2f}<extra></extra>"
+            customdata=np.stack([pct_diff_proxy], axis=-1),
+            hovertemplate="<b>Δ Proxy:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
         ))
 
+        # Strike Notional
         fig.add_trace(go.Scatter(
-            x=spots,
+            x=x_vals,
             y=strike_notional * shock,
             mode='lines',
             name='Strike Notional',
             line=dict(color='magenta', width=1, dash='dot'),
-            hovertemplate="<b>Strike Notional:</b> %{y:,.2f}<extra></extra>"
+            customdata=np.stack([pct_diff_strike], axis=-1),
+            hovertemplate="<b>Strike Notional:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
         ))
 
+        # Spot Notional
         fig.add_trace(go.Scatter(
-            x=spots,
+            x=x_vals,
             y=spot_notional * shock,
             mode='lines',
             name='Spot Notional',
             line=dict(color='lime', width=1, dash='dot'),
-            hovertemplate="<b>Spot Notional:</b> %{y:,.2f}<extra></extra>"
+            customdata=np.stack([pct_diff_spot], axis=-1),
+            hovertemplate="<b>Spot Notional:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
         ))
 
         # Reference lines
         fig.add_vline(x=strike, line=dict(color="white", dash="dash"),
-                      annotation_text="Strike", annotation_position="top")
+                    annotation_text="Strike", annotation_position="top")
         fig.add_vline(x=barrier, line=dict(color="red", dash="dash"),
-                      annotation_text="Barrier", annotation_position="top")
+                    annotation_text="Barrier", annotation_position="top")
+
+        legend_position = dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1) if type_ == "KODA" else dict(orientation="v", yanchor="top", y=1.02, xanchor="left", x=0)
 
         fig.update_layout(
             title=f"Margin ±{shock*100:.1f}% Shock",
@@ -571,11 +592,13 @@ with container_2d:
             yaxis_title="Worst MtM Drop",
             template="plotly_dark",
             hovermode="x unified",
+            hoverlabel=dict(bgcolor="black", font_size=12, font_color="white"),
             margin=dict(l=0, r=0, t=50, b=0),
-            legend=dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1)
+            legend=legend_position
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
 
     st.markdown('</div>', unsafe_allow_html=True)
 
