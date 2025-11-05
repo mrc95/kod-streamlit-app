@@ -494,14 +494,17 @@ with container_2d:
         fig.add_vline(x=barrier, line=dict(color="orange", dash="dash"),
                       annotation_text="Barrier", annotation_position="top")
 
+        position_mtm_legend = dict(orientation="v", yanchor="bottom", y=-0.00, xanchor="right", x=1) if type_ == "KODA" else dict(orientation="v", yanchor="bottom", y=-0.0, xanchor="left", x=0)
+
+
         fig.update_layout(
-            title=f"{type_} MtM Profile (Interactive)",
+            title=f"{type_} MtM Profile",
             xaxis_title="Spot",
             yaxis_title="MtM",
             template="plotly_dark",
             hovermode="x unified",
             margin=dict(l=0, r=0, t=50, b=0),
-            legend=dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1)
+            legend= position_mtm_legend
         )
 
         st.plotly_chart(fig, use_container_width=True)
