@@ -251,9 +251,10 @@ with col1:
 
     with colA:
         # s0 = st.number_input("Spot Price", value=100.0)
-        rate = st.number_input("Interest Rate", value=0.03)
+        rate = st.number_input("Domestic Interest Rate", value=0.03)
+        div = st.number_input("Foreign Interest Rate/Dividend Yield", value=0.0)
         vol = st.number_input("Volatility", value=0.1, min_value=0.01, max_value=1.0, step=0.01)
-        div = st.number_input("Dividend Yield", value=0.0)
+
         periods = st.slider("Number of Periods", 1, 52, 52)
         periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 0)
         if periods_guaranteed > periods:
