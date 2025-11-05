@@ -241,7 +241,7 @@ mpl.rcParams['figure.dpi'] = 300
 # -------------------------
 
 # --- COLUMNS ---
-col1, spacer, col2 = st.columns([1, 0.2, 2])  # small gap between them
+col1, spacer, col2 = st.columns([1.1, 0.2, 2])  # small gap between them
 
 # --- LEFT PANEL: Inputs ---
 with col1:
@@ -250,11 +250,12 @@ with col1:
     colA, colB = st.columns(2)
 
     with colA:
-        # s0 = st.number_input("Spot Price", value=100.0)
-        rate = st.number_input("Domestic Interest Rate", value=0.03)
-        div = st.number_input("Foreign Interest Rate/Dividend Yield", value=0.0)
-        vol = st.number_input("Volatility", value=0.1, min_value=0.01, max_value=1.0, step=0.01)
-
+        type_ = st.selectbox("Product Type", ["Accumulator", "Decumulator"])
+        strike = st.number_input("Strike %", value=90.0 if type_ == "Accumulator" else 110.0)
+        barrier = st.number_input("Barrier %", value=110.0 if type_ == "Accumulator" else 90.0)
+        gear = st.number_input("Gear", 0, 2, 2)
+        nominal = st.number_input("Nominal", value=10000.0)
+        
         periods = st.slider("Number of Periods", 1, 52, 52)
         periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 0)
         if periods_guaranteed > periods:
@@ -262,12 +263,12 @@ with col1:
             periods_guaranteed = periods
 
     with colB:
-        type_ = st.selectbox("Product Type", ["Accumulator", "Decumulator"])
-        strike = st.number_input("Strike %", value=90.0 if type_ == "Accumulator" else 110.0)
-        barrier = st.number_input("Barrier %", value=110.0 if type_ == "Accumulator" else 90.0)
-        gear = st.number_input("Gear", 0, 2, 2)
-        nominal = st.number_input("Nominal", value=10000.0)
+        # s0 = st.number_input("Spot Price", value=100.0)
+        rate = st.number_input("Domestic Interest Rate", value=0.03)
+        div = st.number_input("Foreign Interest Rate/Dividend Yield", value=0.0)
+        vol = st.number_input("Volatility", value=0.1, min_value=0.01, max_value=1.0, step=0.01)
         shock = st.number_input("Margin Risk Factor", 0.01, 0.2, 0.1)
+        
         
 
 # --- CSS for full-height right column ---
