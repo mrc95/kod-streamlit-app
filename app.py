@@ -12,13 +12,14 @@ st.set_page_config(page_title="Accumulator/Decumulator Pricing Dashboard", layou
 st.markdown("""
     <style>
     .block-container {
-        max-width: 1600px;
+        max-width: 1600px;  /* wider but still limited */
         margin: 0 auto;
-        padding-top: 5rem;
-        padding-bottom: 3rem;
+        padding-top: 2rem;
+        padding-bottom: 2rem;
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 @njit()
 def CND(x):
@@ -240,7 +241,7 @@ mpl.rcParams['figure.dpi'] = 300
 # -------------------------
 
 # --- COLUMNS ---
-col1, col2 = st.columns([1, 2])
+col1, spacer, col2 = st.columns([1, 0.2, 2])  # small gap between them
 
 # --- LEFT PANEL: Inputs ---
 with col1:
