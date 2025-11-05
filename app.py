@@ -252,7 +252,7 @@ with col1:
     with colA:
         # s0 = st.number_input("Spot Price", value=100.0)
         rate = st.number_input("Interest Rate", value=0.03)
-        vol = st.number_input("Volatility", value=0.1)
+        vol = st.number_input("Volatility", value=0.1, min_value=0.01, max_value=1.0, step=0.01)
         div = st.number_input("Dividend Yield", value=0.0)
         periods = st.slider("Number of Periods", 1, 52, 52)
         periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 0)
@@ -298,12 +298,12 @@ with col2:
 
     # --- GRID & calculations ---
     if type_ == "Accumulator":
-        spots_ = np.arange(0.8 * strike, 1.2 * barrier, 0.5)
-        around_b = np.arange(0.99 * barrier, 1.01 * barrier, 0.1)
+        spots_ = np.arange(0.6 * strike, 1.2 * barrier, 1)
+        around_b = np.arange(1.1 * strike, 1.01 * barrier, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
     else:
-        spots_ = np.arange(0.8 * barrier, 1.2 * strike, 1)
-        around_b = np.arange(0.99 * barrier, 1.01 * barrier, 0.1)
+        spots_ = np.arange(0.6 * barrier, 1.2 * strike, 1)
+        around_b = np.arange(0.99 * barrier, 1.01*strike, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
 
     spots_plus = spots_ * (1+shock)
@@ -619,7 +619,7 @@ with container_2d:
         legend_position = dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1) if type_ == "Accumulator" else dict(orientation="v", yanchor="top", y=1.02, xanchor="left", x=0)
 
         fig.update_layout(
-            title=f"Margin ±{shock*100:.1f}% Risk Factor",
+            title=f"Margin [{shock*100:.1f}% Risk Factor]",
             xaxis_title="Underlying Spot",
             yaxis_title="Worst MtM Drop",
             template="plotly_dark",
