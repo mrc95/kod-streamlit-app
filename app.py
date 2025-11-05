@@ -11,6 +11,17 @@ st.set_page_config(page_title="Accumulator/Decumulator Pricing Dashboard", layou
 
 st.markdown("""
     <style>
+            
+    /* Import Fira Sans Light from Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300&display=swap');
+
+    /* Apply Fira Sans Light globally */
+    html, body, [class*="css"] {
+        font-family: 'Fira Sans', sans-serif;
+        font-weight: 300;
+        font-size: 16px;
+        letter-spacing: 0.2px;
+    }
     .block-container {
         max-width: 1600px;  /* wider but still limited */
         margin: 0 auto;
@@ -300,11 +311,11 @@ with col2:
 
     # --- GRID & calculations ---
     if type_ == "Accumulator":
-        spots_ = np.arange(0.6 * strike, 1.2 * barrier, 1)
+        spots_ = np.arange(0.8 * strike, 1.2 * barrier, 1)
         around_b = np.arange(1.1 * strike, 1.01 * barrier, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
     else:
-        spots_ = np.arange(0.8 * barrier, 1.4 * strike, 1)
+        spots_ = np.arange(0.8 * barrier, 1.2 * strike, 1)
         around_b = np.arange(0.99 * barrier, 1.01*strike, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
 
@@ -488,7 +499,7 @@ with container_2d:
                 y=call_price_,
                 mode='lines',
                 name="Long Leg (Call)" if type_ == "Accumulator" else "Short Leg (Call)",
-                line=dict(color='lime', width=2, dash='dot'),
+                line=dict(color='lime', width=1, dash='dot'),
                 hovertemplate="<b>Call Leg:</b> %{y:,.2f}<extra></extra>"
             ))
             fig.add_trace(go.Scatter(
@@ -496,14 +507,14 @@ with container_2d:
                 y=put_price_,
                 mode='lines',
                 name="Short Leg (Put)" if type_ == "Accumulator" else "Long Leg (Put)",
-                line=dict(color='magenta', width=2, dash='dot'),
+                line=dict(color='magenta', width=1, dash='dot'),
                 hovertemplate="<b>Put Leg:</b> %{y:,.2f}<extra></extra>"
             ))
 
         # Reference lines
-        fig.add_vline(x=strike, line=dict(color="white", dash="dash"),
+        fig.add_vline(x=strike, line=dict(color="grey", dash="dash", width=0.5),
                       annotation_text="Strike", annotation_position="top")
-        fig.add_vline(x=barrier, line=dict(color="orange", dash="dash"),
+        fig.add_vline(x=barrier, line=dict(color="orange", dash="dash", width=0.5),
                       annotation_text="Barrier", annotation_position="top")
 
         position_mtm_legend = dict(orientation="v", yanchor="bottom", y=-0.00, xanchor="right", x=1) if type_ == "Accumulator" else dict(orientation="v", yanchor="bottom", y=-0.0, xanchor="left", x=0)
@@ -585,20 +596,9 @@ with container_2d:
             y=y_proxy,
             mode='lines',
             name='Δ Proxy',
-            line=dict(color='orange', width=2),
+            line=dict(color='lime', width=1),
             customdata=np.stack([pct_diff_proxy], axis=-1),
             hovertemplate="<b>Δ Proxy:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
-        ))
-
-        # Strike Notional
-        fig.add_trace(go.Scatter(
-            x=x_vals,
-            y=strike_notional * shock,
-            mode='lines',
-            name='Strike Notional',
-            line=dict(color='magenta', width=1, dash='dot'),
-            customdata=np.stack([pct_diff_strike], axis=-1),
-            hovertemplate="<b>Strike Notional:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
         ))
 
         # Spot Notional
@@ -607,15 +607,25 @@ with container_2d:
             y=spot_notional * shock,
             mode='lines',
             name='Spot Notional',
-            line=dict(color='lime', width=1, dash='dot'),
+            line=dict(color='orange', width=1, dash='dot'),
             customdata=np.stack([pct_diff_spot], axis=-1),
             hovertemplate="<b>Spot Notional:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
         ))
 
+        # Strike Notional
+        fig.add_trace(go.Scatter(
+            x=x_vals,
+            y=strike_notional * shock,
+            mode='lines',
+            name='Strike Notional',
+            line=dict(color='white', width=1, dash='dot'),
+            customdata=np.stack([pct_diff_strike], axis=-1),
+            hovertemplate="<b>Strike Notional:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
+        ))
         # Reference lines
-        fig.add_vline(x=strike, line=dict(color="white", dash="dash"),
+        fig.add_vline(x=strike, line=dict(color="grey", dash="dash", width=0.5),
                     annotation_text="Strike", annotation_position="top")
-        fig.add_vline(x=barrier, line=dict(color="red", dash="dash"),
+        fig.add_vline(x=barrier, line=dict(color="red", dash="dash", width=0.5),
                     annotation_text="Barrier", annotation_position="top")
 
         legend_position = dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1) if type_ == "Accumulator" else dict(orientation="v", yanchor="top", y=1.02, xanchor="left", x=0)
