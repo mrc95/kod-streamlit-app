@@ -261,24 +261,29 @@ with col1:
     colA, colB = st.columns(2)
 
     with colA:
+        s0 = st.number_input("Spot Price", value=100.0)
         type_ = st.selectbox("Product Type", ["Accumulator", "Decumulator"])
-        strike = st.number_input("Strike %", value=90.0 if type_ == "Accumulator" else 110.0)
-        barrier = st.number_input("Barrier %", value=110.0 if type_ == "Accumulator" else 90.0)
+        strike = st.number_input("Strike %", value=0.9 * s0 if type_ == "Accumulator" else 1.1 * s0)
+        barrier = st.number_input("Barrier %", value=1.1*s0 if type_ == "Accumulator" else 0.9*s0)
         gear = st.number_input("Gear", 0, 2, 2)
-        nominal = st.number_input("Nominal", value=10000.0)
+        lots = st.number_input("Lots", 1, 1000, 10)
+       
         
         periods = st.slider("Number of Periods", 1, 52, 52)
         periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 0)
+        nominal = lots * strike * periods
+        
         if periods_guaranteed > periods:
             st.error("Guaranteed periods cannot exceed total periods.")
             periods_guaranteed = periods
 
     with colB:
-        # s0 = st.number_input("Spot Price", value=100.0)
+        
         rate = st.number_input("Domestic Interest Rate", value=0.03)
         div = st.number_input("Foreign Interest Rate/Dividend Yield", value=0.0)
         vol = st.number_input("Volatility", value=0.1, min_value=0.01, max_value=1.0, step=0.01)
         shock = st.number_input("Margin Risk Factor", 0.01, 0.2, 0.1)
+        st.markdown(f"**Nominal Value:** {nominal:,.2f}")
         
         
 
@@ -311,12 +316,12 @@ with col2:
 
     # --- GRID & calculations ---
     if type_ == "Accumulator":
-        spots_ = np.arange(0.8 * strike, 1.2 * barrier, 1)
-        around_b = np.arange(1.1 * strike, 1.01 * barrier, 0.1)
+        spots_ = np.arange(0.8 * strike, 1.2 * barrier, 0.1)
+        around_b = np.arange(1.1 * strike, 1.01 * barrier, 0.01)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
     else:
-        spots_ = np.arange(0.8 * barrier, 1.2 * strike, 1)
-        around_b = np.arange(0.99 * barrier, 1.01*strike, 0.1)
+        spots_ = np.arange(0.8 * barrier, 1.2 * strike, 0.1)
+        around_b = np.arange(0.99 * barrier, 1.01*strike, 0.01)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
 
     spots_plus = spots_ * (1+shock)
@@ -348,6 +353,15 @@ with col2:
     delta_call_   = []
     delta_put_    = []
     delta_strip_  = []
+
+    gamma_call   = []
+    gamma_put    = []
+    gamma_strip  = []
+
+    gamma_call_   = []
+    gamma_put_    = []
+    gamma_strip_  = []
+
 
     # call_price_van  = []
     # put_price_van   = []
@@ -387,6 +401,12 @@ with col2:
                 delta_call .append (sign_call * d_call * nominal_)
                 delta_put  .append (sign_put    *d_put * nominal_)
                 delta_strip.append ((sign_call  * d_call + sign_put   * d_put) * nominal_)
+                
+                g_call = (c_price_up - 2*c_price + c_price_do) / (h**2)
+                g_put = (p_price_up - 2*p_price + p_price_do) / (h**2)
+                gamma_call .append (sign_call * g_call * nominal_)
+                gamma_put  .append (sign_put    *g_put * nominal_)
+                gamma_strip.append ((sign_call  * g_call + sign_put   * g_put) * nominal_)
 
             else:
                 c_price = StandardBarrierOption(TypeFlag=call_type, S=spot, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
@@ -407,6 +427,12 @@ with col2:
                 delta_call .append (sign_call * gear_call* d_call * nominal_)
                 delta_put  .append (sign_put  * gear_put  *d_put * nominal_)
                 delta_strip.append ((sign_call * gear_call * d_call + sign_put  * gear_put  * d_put) * nominal_)
+
+                g_call = (c_price_up - 2*c_price + c_price_do) / (h**2)
+                g_put = (p_price_up - 2*p_price + p_price_do) / (h**2)
+                gamma_call .append (sign_call * g_call * nominal_ * gear_call)
+                gamma_put  .append (sign_put    *g_put * nominal_ * gear_put)
+                gamma_strip.append ((sign_call  * g_call * gear_call+ sign_put    * g_put * gear_put) * nominal_)
 
             # vanilla instruments 
             # c_price_van = StandardBarrierOption(TypeFlag=111, S=spot, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
@@ -445,6 +471,10 @@ with col2:
         delta_put_.append(np.sum(delta_put) / (gear_put))
         delta_strip_.append(np.sum(delta_strip) / (gear))
 
+        gamma_call_.append(np.sum(gamma_call) / (gear_call))
+        gamma_put_.append(np.sum(gamma_put) / (gear_put))
+        gamma_strip_.append(np.sum(gamma_strip) / (gear))
+
         # delta_call_van_.append(np.sum(delta_call_van) / (gear_call))
         # delta_put_van_.append(np.sum(delta_put_van) / (gear_put))
 
@@ -457,6 +487,10 @@ with col2:
         delta_call   = []
         delta_put    = []
         delta_strip  = []
+
+        gamma_call   = []
+        gamma_put    = []
+        gamma_strip  = []
 
         # delta_call_van   = []
         # delta_put_van    = []
@@ -548,23 +582,34 @@ with container_2d:
 
         kod_mtm = dict(zip(spots, strip_price_))
         kod_delta = dict(zip(spots, delta_strip_))
+        # kod_gamma = dict(zip(spots, gamma_strip_))
 
         true_delta = {}
         proxy_delta = {}
+        # proxy_delta_gamma = {}
 
         for s in spots_:
             try:
                 coeff = kod_delta[s]
+                # coeff_gamma = kod_gamma[s]
 
                 tangent = kod_mtm[s] + coeff * (spots - s)
+                # tangent_gamma = tangent + 0.5*coeff_gamma * (spots - s)**2
+                
                 tangent = dict(zip(spots, tangent))
                 tangent_plus = tangent[s * (1 + shock)]
                 tangent_minus = tangent[s * (1 - shock)]
+
+                # tangent_gamma = dict(zip(spots, tangent_gamma))
+                # tangent_gamma_plus = tangent_gamma[s * (1 + shock)]
+                # tangent_gamma_minus = tangent_gamma[s * (1 - shock)]
 
                 true_delta[s] = -1 * min(kod_mtm[s * (1 + shock)] - kod_mtm[s],
                                         kod_mtm[s * (1 - shock)] - kod_mtm[s])
                 proxy_delta[s] = -1 * min(tangent_plus - tangent[s],
                                         tangent_minus - tangent[s])
+                # proxy_delta_gamma[s] = -1 * min(tangent_gamma_plus - tangent_gamma[s],
+                #                                 tangent_gamma_minus - tangent_gamma[s])
 
             except Exception as e:
                 print(e)
@@ -572,11 +617,13 @@ with container_2d:
         x_vals = np.array(list(true_delta.keys()))
         y_true = np.array(list(true_delta.values()))
         y_proxy = np.array(list(proxy_delta.values()))
+        # y_proxy_gamma = np.maximum(np.array(list(proxy_delta_gamma.values())), 0)
 
         # Compute % diff wrt Actual
         pct_diff_proxy = np.round(100 * (y_proxy - y_true) / y_true, 2)
         pct_diff_strike = np.round(100 * ((strike_notional * shock) - y_true) / y_true, 2)
         pct_diff_spot = np.round(100 * ((spot_notional * shock) - y_true) / y_true, 2)
+        # pct_diff_proxy_gamma = np.round(100 * (y_proxy_gamma - y_true) / y_true, 2)
 
         fig = go.Figure()
 
@@ -600,6 +647,25 @@ with container_2d:
             customdata=np.stack([pct_diff_proxy], axis=-1),
             hovertemplate="<b>Δ Proxy:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
         ))
+
+        show_gamma_proxy = st.toggle(
+            "Show Δ Gamma Proxy", 
+            value=False, 
+            key="show_gamma_toggle", 
+            help="Toggle to display Delta & Gamma Proxy."
+        )
+
+        # if show_gamma_proxy:
+        #     # Δ Proxy Gamma
+        #     fig.add_trace(go.Scatter(
+        #         x=x_vals,
+        #         y=y_proxy_gamma,
+        #         mode='lines',
+        #         name='Δ Proxy Gamma',
+        #         line=dict(color='magenta', width=1, dash='dot'),
+        #         customdata=np.stack([pct_diff_proxy_gamma], axis=-1),
+        #         hovertemplate="<b>Δ Proxy Gamma:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
+        #     ))
 
         # Spot Notional
         fig.add_trace(go.Scatter(
