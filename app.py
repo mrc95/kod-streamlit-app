@@ -620,7 +620,7 @@ with container_2d:
 
         fig.update_layout(
             title=f"Margin [{shock*100:.1f}% Risk Factor]",
-            xaxis_title="Underlying Spot",
+            xaxis_title="Spot",
             yaxis_title="Worst MtM Drop",
             template="plotly_dark",
             hovermode="x unified",
