@@ -7,7 +7,7 @@ from numba import njit
 import plotly.graph_objects as go
 from scipy.interpolate import griddata
 
-st.set_page_config(page_title="KODA/KODD Pricing Dashboard", layout="wide")
+st.set_page_config(page_title="Accumulator/Decumulator Pricing Dashboard", layout="wide")
 
 st.markdown("""
     <style>
@@ -260,9 +260,9 @@ with col1:
             periods_guaranteed = periods
 
     with colB:
-        type_ = st.selectbox("Product Type", ["KODA", "KODD"])
-        strike = st.number_input("Strike %", value=90.0 if type_ == "KODA" else 110.0)
-        barrier = st.number_input("Barrier %", value=110.0 if type_ == "KODA" else 90.0)
+        type_ = st.selectbox("Product Type", ["Accumulator", "Decumulator"])
+        strike = st.number_input("Strike %", value=90.0 if type_ == "Accumulator" else 110.0)
+        barrier = st.number_input("Barrier %", value=110.0 if type_ == "Accumulator" else 90.0)
         gear = st.number_input("Gear", 0, 2, 2)
         nominal = st.number_input("Nominal", value=10000.0)
         shock = st.number_input("Margin Risk Factor", 0.01, 0.2, 0.1)
@@ -296,7 +296,7 @@ with col2:
     container_3d = st.container()
 
     # --- GRID & calculations ---
-    if type_ == "KODA":
+    if type_ == "Accumulator":
         spots_ = np.arange(0.8 * strike, 1.2 * barrier, 1)
         around_b = np.arange(0.99 * barrier, 1.01 * barrier, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
@@ -311,10 +311,10 @@ with col2:
 
     strips_mat = np.arange(1, periods + 1) / periods
     guaranteed_mats = strips_mat[:periods_guaranteed]
-    sign_call, sign_put = (1, -1) if type_ == "KODA" else (-1, 1)
-    gear_call, gear_put = (1, gear) if type_ == "KODA" else (gear, 1)
-    call_type = 112 if type_ == "KODA" else 122
-    put_type = 212 if type_ == "KODA" else 222
+    sign_call, sign_put = (1, -1) if type_ == "Accumulator" else (-1, 1)
+    gear_call, gear_put = (1, gear) if type_ == "Accumulator" else (gear, 1)
+    call_type = 112 if type_ == "Accumulator" else 122
+    put_type = 212 if type_ == "Accumulator" else 222
     h = 1e-6
 
     # This # empty structures 
@@ -484,7 +484,7 @@ with container_2d:
                 x=spots,
                 y=call_price_,
                 mode='lines',
-                name="Long Leg (Call)" if type_ == "KODA" else "Short Leg (Call)",
+                name="Long Leg (Call)" if type_ == "Accumulator" else "Short Leg (Call)",
                 line=dict(color='lime', width=2, dash='dot'),
                 hovertemplate="<b>Call Leg:</b> %{y:,.2f}<extra></extra>"
             ))
@@ -492,7 +492,7 @@ with container_2d:
                 x=spots,
                 y=put_price_,
                 mode='lines',
-                name="Short Leg (Put)" if type_ == "KODA" else "Long Leg (Put)",
+                name="Short Leg (Put)" if type_ == "Accumulator" else "Long Leg (Put)",
                 line=dict(color='magenta', width=2, dash='dot'),
                 hovertemplate="<b>Put Leg:</b> %{y:,.2f}<extra></extra>"
             ))
@@ -503,7 +503,7 @@ with container_2d:
         fig.add_vline(x=barrier, line=dict(color="orange", dash="dash"),
                       annotation_text="Barrier", annotation_position="top")
 
-        position_mtm_legend = dict(orientation="v", yanchor="bottom", y=-0.00, xanchor="right", x=1) if type_ == "KODA" else dict(orientation="v", yanchor="bottom", y=-0.0, xanchor="left", x=0)
+        position_mtm_legend = dict(orientation="v", yanchor="bottom", y=-0.00, xanchor="right", x=1) if type_ == "Accumulator" else dict(orientation="v", yanchor="bottom", y=-0.0, xanchor="left", x=0)
 
 
         fig.update_layout(
@@ -526,11 +526,11 @@ with container_2d:
         # )
 
         if periods == 1 and periods_guaranteed == 1:
-            strike_notional = np.where(spots_ <= barrier, strike * nominal , 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, strike * nominal )
-            spot_notional = np.where(spots_ <= barrier, spots_ * nominal , 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, spots_ * nominal )
+            strike_notional = np.where(spots_ <= barrier, strike * nominal , 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, strike * nominal )
+            spot_notional = np.where(spots_ <= barrier, spots_ * nominal , 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, spots_ * nominal )
         else:
-            strike_notional = np.where(spots_ <= barrier, strike * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, strike * nominal * gear)
-            spot_notional = np.where(spots_ <= barrier, spots_ * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, spots_ * nominal * gear)
+            strike_notional = np.where(spots_ <= barrier, strike * nominal * gear, 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, strike * nominal * gear)
+            spot_notional = np.where(spots_ <= barrier, spots_ * nominal * gear, 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, spots_ * nominal * gear)
 
         kod_mtm = dict(zip(spots, strip_price_))
         kod_delta = dict(zip(spots, delta_strip_))
@@ -615,7 +615,7 @@ with container_2d:
         fig.add_vline(x=barrier, line=dict(color="red", dash="dash"),
                     annotation_text="Barrier", annotation_position="top")
 
-        legend_position = dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1) if type_ == "KODA" else dict(orientation="v", yanchor="top", y=1.02, xanchor="left", x=0)
+        legend_position = dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1) if type_ == "Accumulator" else dict(orientation="v", yanchor="top", y=1.02, xanchor="left", x=0)
 
         fig.update_layout(
             title=f"Margin ±{shock*100:.1f}% Risk Factor",
