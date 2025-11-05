@@ -265,7 +265,7 @@ with col1:
         barrier = st.number_input("Barrier %", value=110.0 if type_ == "KODA" else 90.0)
         gear = st.number_input("Gear", 0, 2, 2)
         nominal = st.number_input("Nominal", value=10000.0)
-        shock = st.number_input("Margin Shock", 0.01, 0.2, 0.1)
+        shock = st.number_input("Margin Risk Factor", 0.01, 0.2, 0.1)
         
 
 # --- CSS for full-height right column ---
@@ -618,7 +618,7 @@ with container_2d:
         legend_position = dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1) if type_ == "KODA" else dict(orientation="v", yanchor="top", y=1.02, xanchor="left", x=0)
 
         fig.update_layout(
-            title=f"Margin ±{shock*100:.1f}% Shock",
+            title=f"Margin ±{shock*100:.1f}% Risk Factor",
             xaxis_title="Underlying Spot",
             yaxis_title="Worst MtM Drop",
             template="plotly_dark",
