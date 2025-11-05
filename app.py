@@ -298,7 +298,7 @@ with col2:
 
     # --- GRID & calculations ---
     if type_ == "Accumulator":
-        spots_ = np.arange(0.8 * strike, 1.2 * barrier, 1)
+        spots_ = np.arange(0.8 * strike, 1.2 * barrier, 0.5)
         around_b = np.arange(0.99 * barrier, 1.01 * barrier, 0.1)
         spots_ = np.unique(np.concatenate([spots_, around_b]))
     else:
