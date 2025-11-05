@@ -9,6 +9,8 @@ from scipy.interpolate import griddata
 
 st.set_page_config(page_title="KODA/KODD Pricing Dashboard", layout="wide")
 
+
+
 @njit()
 def CND(x):
     """
@@ -238,19 +240,21 @@ with col1:
     colA, colB = st.columns(2)
 
     with colA:
-        s0 = st.number_input("Spot Price", value=100.0)
+        # s0 = st.number_input("Spot Price", value=100.0)
         rate = st.number_input("Interest Rate", value=0.03)
         vol = st.number_input("Volatility", value=0.1)
         div = st.number_input("Dividend Yield", value=0.0)
         periods = st.slider("Number of Periods", 1, 52, 52)
+        periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 5)
 
     with colB:
         type_ = st.selectbox("Product Type", ["KODA", "KODD"])
         strike = st.number_input("Strike", value=90.0 if type_ == "KODA" else 110.0)
         barrier = st.number_input("Barrier", value=110.0 if type_ == "KODA" else 90.0)
         gear = st.number_input("Gear", 0, 2, 2)
-        nominal = st.number_input("Nominal", value=10000.0)
-        periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 5)
+        nominal = st.number_input("Nominal", value=10000.0) * gear
+        shock = st.number_input("Margin Shock", 0.01, 0.2, 0.1)
+        
 
 # --- CSS for full-height right column ---
 st.markdown("""
@@ -274,52 +278,163 @@ st.markdown("""
 
 # --- RIGHT PANEL ---
 with col2:
-    st.header("📈 MtM Profiles")
+    st.header("📈 Charts")
     st.markdown('<div class="full-height">', unsafe_allow_html=True)
     container_2d = st.container()
     container_3d = st.container()
 
     # --- GRID & calculations ---
-    spots = np.arange(0.8 * strike, 1.2 * barrier, 0.1) if type_ == "KODA" else np.arange(0.8 * barrier, 1.2 * strike, 0.1)
+    if type_ == "KODA":
+        spots_ = np.arange(0.8 * strike, 1.2 * barrier, 1)
+        around_b = np.arange(0.99 * barrier, 1.01 * barrier, 0.1)
+        spots_ = np.unique(np.concatenate([spots_, around_b]))
+    else:
+        spots_ = np.arange(0.8 * barrier, 1.2 * strike, 1)
+        around_b = np.arange(0.99 * barrier, 1.01 * barrier, 0.1)
+        spots_ = np.unique(np.concatenate([spots_, around_b]))
+
+    spots_plus = spots_ * (1+shock)
+    spots_minus = spots_ * (1-shock)
+    spots = np.unique(np.concatenate([spots_, spots_plus, spots_minus]))
+
     strips_mat = np.arange(1, periods + 1) / periods
     guaranteed_mats = strips_mat[:periods_guaranteed]
     sign_call, sign_put = (1, -1) if type_ == "KODA" else (-1, 1)
     gear_call, gear_put = (1, gear) if type_ == "KODA" else (gear, 1)
     call_type = 112 if type_ == "KODA" else 122
     put_type = 212 if type_ == "KODA" else 222
+    h = 1e-6
 
-    Z = np.zeros((len(strips_mat), len(spots)))
-    strip_price_2d, call_price_2d, put_price_2d = [], [], []
+    # This # empty structures 
 
-    for j, spot in enumerate(spots):
-        strip_price_per_spot, call_price_per_spot, put_price_per_spot = [], [], []
-        for i, t in enumerate(strips_mat):
+    call_price   = []
+    put_price    = []
+    strip_price  = []
+
+    delta_call   = []
+    delta_put    = []
+    delta_strip  = []
+
+    call_price_   = []
+    put_price_    = []
+    strip_price_  = []
+
+    delta_call_   = []
+    delta_put_    = []
+    delta_strip_  = []
+
+    # call_price_van  = []
+    # put_price_van   = []
+    # call_price_van_ = []
+    # put_price_van_  = []
+
+    # delta_call_van  = []
+    # delta_put_van   = []
+    # delta_call_van_ = []
+    # delta_put_van_  = []
+
+    # fwd_price = []
+    # fwd_price_ = []
+
+    for spot in spots:
+        for t in strips_mat:
             maturity = t
-            nominal_ = nominal / periods
-            c_price_fwd = StandardBarrierOption(TypeFlag=111, S=spot, X=strike, H=1e-5, K=0,
-                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
-            p_price_fwd = StandardBarrierOption(TypeFlag=211, S=spot, X=strike, H=1e-5, K=0,
-                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+            nominal_ = gear * nominal / periods
+            # fw = sign_call*(spot - strike * np.exp(-rate * maturity))
+
             if t in guaranteed_mats:
-                c_price, p_price = c_price_fwd, p_price_fwd
-                strip_val = (sign_call * c_price + sign_put * p_price) * nominal_
+                c_price = StandardBarrierOption(TypeFlag=111, S=spot, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                p_price = StandardBarrierOption(TypeFlag=211, S=spot, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+
+                c_price_up = StandardBarrierOption(TypeFlag=111, S=spot + h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                c_price_do = StandardBarrierOption(TypeFlag=111, S=spot - h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+
+                p_price_up = StandardBarrierOption(TypeFlag=211, S=spot + h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                p_price_do = StandardBarrierOption(TypeFlag=211, S=spot - h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+
             else:
-                c_price = StandardBarrierOption(TypeFlag=call_type, S=spot, X=strike, H=barrier, K=0,
-                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
-                p_price = StandardBarrierOption(TypeFlag=put_type, S=spot, X=strike, H=barrier, K=0,
-                                                Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
-                strip_val = (sign_call * gear_call * c_price + sign_put * gear_put * p_price) * nominal_
+                c_price = StandardBarrierOption(TypeFlag=call_type, S=spot, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                p_price = StandardBarrierOption(TypeFlag=put_type, S=spot, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
 
-            strip_price_per_spot.append(strip_val)
-            call_price_per_spot.append(sign_call * gear_call * c_price * nominal_)
-            put_price_per_spot.append(sign_put * gear_put * p_price * nominal_)
-        strip_price_2d.append(np.mean(strip_price_per_spot))
-        call_price_2d.append(np.mean(call_price_per_spot))
-        put_price_2d.append(np.mean(put_price_per_spot))
+                c_price_up = StandardBarrierOption(TypeFlag=call_type, S=spot + h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                c_price_do = StandardBarrierOption(TypeFlag=call_type, S=spot - h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
 
-    # --- Interactive chart ---
-    with container_2d:
-        
+                p_price_up = StandardBarrierOption(TypeFlag=put_type, S=spot + h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                p_price_do = StandardBarrierOption(TypeFlag=put_type, S=spot - h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+                
+                
+
+            # vanilla instruments 
+            # c_price_van = StandardBarrierOption(TypeFlag=111, S=spot, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+            # p_price_van = StandardBarrierOption(TypeFlag=211, S=spot, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+
+            # c_price_van_up = StandardBarrierOption(TypeFlag=111, S=spot+h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+            # p_price_van_up = StandardBarrierOption(TypeFlag=211, S=spot+h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+
+            # c_price_van_do = StandardBarrierOption(TypeFlag=111, S=spot-h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+            # p_price_van_do = StandardBarrierOption(TypeFlag=211, S=spot-h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
+
+
+            call_price.append(sign_call * c_price * nominal_ * gear_call)
+            put_price.append(sign_put  * p_price * nominal_ * gear_put)
+            strip_price.append((sign_call * c_price * gear_call + sign_put * p_price * gear_put)* nominal_)
+
+
+            # call_price_van.append (sign_call * gear_call * c_price_van * nominal_)
+            # put_price_van .append (sign_put  * gear_put  * p_price_van * nominal_)
+            # fwd_price     .append(sign_call * c_price_fwd + sign_put * p_price_fwd)
+
+            d_call = (c_price_up - c_price_do) / (2*h)
+            d_put = (p_price_up - p_price_do) / (2*h)
+            delta_call .append (sign_call * gear_call* d_call * nominal_)
+            delta_put  .append (sign_put  * gear_put  *d_put * nominal_)
+            delta_strip.append ((sign_call * gear_call * d_call + sign_put  * gear_put  * d_put) * nominal_)
+
+            # d_call_van = (c_price_van_up - c_price_van_do) / (2*h)
+            # d_put_van  = (p_price_van_up - p_price_van_do) / (2*h)
+            # delta_call_van .append (sign_call * gear_call* d_call_van * nominal_)
+            # delta_put_van .append (sign_put  * gear_put  *d_put_van * nominal_)
+
+        call_price_.append(np.sum(call_price) / (gear))
+        put_price_.append(np.sum(put_price) / (gear))
+        strip_price_.append(np.sum(strip_price) / (gear))
+        # fwd_price_.append(np.sum(fwd_price) / (len(fwd_price)))
+
+        # call_price_van_.append(np.sum(call_price_van) / (gear_call))
+        # put_price_van_.append(np.sum(put_price_van) / (gear_put))
+
+        delta_call_.append(np.sum(delta_call) / (gear_call))
+        delta_put_.append(np.sum(delta_put) / (gear_put))
+        delta_strip_.append(np.sum(delta_strip) / (gear))
+
+        # delta_call_van_.append(np.sum(delta_call_van) / (gear_call))
+        # delta_put_van_.append(np.sum(delta_put_van) / (gear_put))
+
+        call_price     = []
+        put_price      = []
+        # call_price_van = []
+        # put_price_van  = []
+        strip_price    = []
+
+        delta_call   = []
+        delta_put    = []
+        delta_strip  = []
+
+        # delta_call_van   = []
+        # delta_put_van    = []
+
+        # fwd_price   = []
+
+# --- Interactive chart with tabs ---
+with container_2d:
+    # st.markdown("### Interactive Pricing Panels")
+
+    # --- Tabs for Sensitivity and Margin ---
+    tab_sensitivity, tab_margin = st.tabs(["Sensitivity", "Margin"])
+
+    # --- Sensitivity / MtM Tab ---
+    with tab_sensitivity:
+        # Toggle to show individual legs
         show_legs = st.toggle(
             "Show Long / Short Legs", 
             value=False, 
@@ -327,44 +442,44 @@ with col2:
             help="Toggle to display individual legs alongside the combined MtM profile."
         )
 
-        fig2d = go.Figure()
+        fig = go.Figure()
 
         # Combined MtM
-        fig2d.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
             x=spots,
-            y=strip_price_2d,
+            y=strip_price_,
             mode='lines',
             name=f"{type_} MtM",
             line=dict(color='cyan', width=3),
-            hovertemplate="<b>Spot:</b> %{x:.2f}<br><b>MtM:</b> %{y:,.2f}<extra></extra>"
+            hovertemplate="<b>MtM:</b> %{y:,.2f}<extra></extra>"
         ))
 
-        # Legs if toggled on
+        # Individual legs
         if show_legs:
-            fig2d.add_trace(go.Scatter(
+            fig.add_trace(go.Scatter(
                 x=spots,
-                y=call_price_2d,
+                y=call_price_,
                 mode='lines',
                 name="Long Leg (Call)" if type_ == "KODA" else "Short Leg (Call)",
                 line=dict(color='lime', width=2, dash='dot'),
-                hovertemplate="<b>Spot:</b> %{x:.2f}<br><b>Call Leg:</b> %{y:,.2f}<extra></extra>"
+                hovertemplate="<b>Call Leg:</b> %{y:,.2f}<extra></extra>"
             ))
-            fig2d.add_trace(go.Scatter(
+            fig.add_trace(go.Scatter(
                 x=spots,
-                y=put_price_2d,
+                y=put_price_,
                 mode='lines',
                 name="Short Leg (Put)" if type_ == "KODA" else "Long Leg (Put)",
                 line=dict(color='magenta', width=2, dash='dot'),
-                hovertemplate="<b>Spot:</b> %{x:.2f}<br><b>Put Leg:</b> %{y:,.2f}<extra></extra>"
+                hovertemplate="<b>Put Leg:</b> %{y:,.2f}<extra></extra>"
             ))
 
         # Reference lines
-        fig2d.add_vline(x=strike, line=dict(color="white", dash="dash"),
-                        annotation_text="Strike", annotation_position="top")
-        fig2d.add_vline(x=barrier, line=dict(color="orange", dash="dash"),
-                        annotation_text="Barrier", annotation_position="top")
+        fig.add_vline(x=strike, line=dict(color="white", dash="dash"),
+                      annotation_text="Strike", annotation_position="top")
+        fig.add_vline(x=barrier, line=dict(color="orange", dash="dash"),
+                      annotation_text="Barrier", annotation_position="top")
 
-        fig2d.update_layout(
+        fig.update_layout(
             title=f"{type_} MtM Profile (Interactive)",
             xaxis_title="Spot",
             yaxis_title="MtM",
@@ -374,11 +489,100 @@ with col2:
             legend=dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1)
         )
 
-        st.plotly_chart(fig2d, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # --- Margin Tab ---
+    with tab_margin:
+        # shock = st.number_input(
+        #     "Margin Shock", 0.01, 0.1, 0.2,
+        #     help="Specify shock level for worst MtM drop calculation"
+        # )
+        strike_notional = np.where(spots <= barrier, strike * nominal * gear, 0) if type_ == 'KODA' else np.where(spots <= barrier,0, strike * nominal * gear)
+        spot_notional = np.where(spots <= barrier, spots * nominal * gear, 0) if type_ == 'KODA' else np.where(spots <= barrier,0, spots * nominal * gear)
+
+        kod_mtm = dict(zip(spots, strip_price_))
+        kod_delta = dict(zip(spots, delta_strip_))
+
+        true_delta = {}
+        proxy_delta = {}
+
+        for s in spots_:
+            try:
+                coeff = kod_delta[s]
+
+                tangent = kod_mtm[s] + coeff*(spots - s)
+                tangent = dict(zip(spots, tangent))
+                tangent_plus = tangent[s*(1+shock)]
+                tangent_minus = tangent[s*(1-shock)]
+
+                true_delta[s] = -1*min(kod_mtm[s*(1+shock)] - kod_mtm[s], kod_mtm[s*(1-shock)] - kod_mtm[s])
+                proxy_delta[s] = -1*min(tangent_plus - tangent[s], tangent_minus - tangent[s])
+
+            except Exception as e:
+                print(e)
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=list(true_delta.keys()),
+            y=list(true_delta.values()),
+            mode='lines',
+            name='Actual',
+            line=dict(color='cyan', width=2),
+            hovertemplate="<b>Actual Δ:</b> %{y:,.2f}<extra></extra>"
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=list(proxy_delta.keys()),
+            y=list(proxy_delta.values()),
+            mode='lines',
+            name='Δ Proxy',
+            line=dict(color='orange', width=2),
+            hovertemplate="<b>Proxy Δ:</b> %{y:,.2f}<extra></extra>"
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=spots,
+            y=strike_notional * shock,
+            mode='lines',
+            name='Strike Notional',
+            line=dict(color='magenta', width=1, dash='dot'),
+            hovertemplate="<b>Strike Notional:</b> %{y:,.2f}<extra></extra>"
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=spots,
+            y=spot_notional * shock,
+            mode='lines',
+            name='Spot Notional',
+            line=dict(color='lime', width=1, dash='dot'),
+            hovertemplate="<b>Spot Notional:</b> %{y:,.2f}<extra></extra>"
+        ))
+
+        # Reference lines
+        fig.add_vline(x=strike, line=dict(color="white", dash="dash"),
+                      annotation_text="Strike", annotation_position="top")
+        fig.add_vline(x=barrier, line=dict(color="red", dash="dash"),
+                      annotation_text="Barrier", annotation_position="top")
+
+        fig.update_layout(
+            title=f"Margin ±{shock*100:.1f}% Shock",
+            xaxis_title="Underlying Spot",
+            yaxis_title="Worst MtM Drop",
+            template="plotly_dark",
+            hovermode="x unified",
+            margin=dict(l=0, r=0, t=50, b=0),
+            legend=dict(orientation="v", yanchor="top", y=1.02, xanchor="right", x=1)
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 
 
 
-# %%
+
+
+
+
