@@ -246,6 +246,9 @@ with col1:
         div = st.number_input("Dividend Yield", value=0.0)
         periods = st.slider("Number of Periods", 1, 52, 52)
         periods_guaranteed = st.slider("Guaranteed Periods", 0, 10, 0)
+        if periods_guaranteed > periods:
+            st.error("Guaranteed periods cannot exceed total periods.")
+            periods_guaranteed = periods
 
     with colB:
         type_ = st.selectbox("Product Type", ["KODA", "KODD"])
@@ -510,8 +513,12 @@ with container_2d:
         #     help="Specify shock level for worst MtM drop calculation"
         # )
 
-        strike_notional = np.where(spots_ <= barrier, strike * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, strike * nominal * gear)
-        spot_notional = np.where(spots_ <= barrier, spots_ * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, spots_ * nominal * gear)
+        if periods == 1 and periods_guaranteed == 1:
+            strike_notional = np.where(spots_ <= barrier, strike * nominal , 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, strike * nominal )
+            spot_notional = np.where(spots_ <= barrier, spots_ * nominal , 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, spots_ * nominal )
+        else:
+            strike_notional = np.where(spots_ <= barrier, strike * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, strike * nominal * gear)
+            spot_notional = np.where(spots_ <= barrier, spots_ * nominal * gear, 0) if type_ == 'KODA' else np.where(spots_ <= barrier, 0, spots_ * nominal * gear)
 
         kod_mtm = dict(zip(spots, strip_price_))
         kod_delta = dict(zip(spots, delta_strip_))
