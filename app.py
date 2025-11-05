@@ -249,8 +249,8 @@ with col1:
 
     with colB:
         type_ = st.selectbox("Product Type", ["KODA", "KODD"])
-        strike = st.number_input("Strike", value=90.0 if type_ == "KODA" else 110.0)
-        barrier = st.number_input("Barrier", value=110.0 if type_ == "KODA" else 90.0)
+        strike = st.number_input("Strike %", value=90.0 if type_ == "KODA" else 110.0)
+        barrier = st.number_input("Barrier %", value=110.0 if type_ == "KODA" else 90.0)
         gear = st.number_input("Gear", 0, 2, 2)
         nominal = st.number_input("Nominal", value=10000.0) * gear
         shock = st.number_input("Margin Shock", 0.01, 0.2, 0.1)
@@ -352,6 +352,16 @@ with col2:
                 p_price_up = StandardBarrierOption(TypeFlag=211, S=spot + h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
                 p_price_do = StandardBarrierOption(TypeFlag=211, S=spot - h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
 
+                call_price.append(sign_call * c_price * nominal_ )
+                put_price.append(sign_put  * p_price * nominal_ )
+                strip_price.append((sign_call * c_price + sign_put * p_price )* nominal_)
+
+                d_call = (c_price_up - c_price_do) / (2*h)
+                d_put = (p_price_up - p_price_do) / (2*h)
+                delta_call .append (sign_call * d_call * nominal_)
+                delta_put  .append (sign_put    *d_put * nominal_)
+                delta_strip.append ((sign_call  * d_call + sign_put   * d_put) * nominal_)
+
             else:
                 c_price = StandardBarrierOption(TypeFlag=call_type, S=spot, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
                 p_price = StandardBarrierOption(TypeFlag=put_type, S=spot, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
@@ -362,7 +372,15 @@ with col2:
                 p_price_up = StandardBarrierOption(TypeFlag=put_type, S=spot + h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
                 p_price_do = StandardBarrierOption(TypeFlag=put_type, S=spot - h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
                 
-                
+                call_price.append(sign_call * c_price * nominal_ * gear_call)
+                put_price.append(sign_put  * p_price * nominal_ * gear_put)
+                strip_price.append((sign_call * c_price * gear_call + sign_put * p_price * gear_put)* nominal_)
+
+                d_call = (c_price_up - c_price_do) / (2*h)
+                d_put = (p_price_up - p_price_do) / (2*h)
+                delta_call .append (sign_call * gear_call* d_call * nominal_)
+                delta_put  .append (sign_put  * gear_put  *d_put * nominal_)
+                delta_strip.append ((sign_call * gear_call * d_call + sign_put  * gear_put  * d_put) * nominal_)
 
             # vanilla instruments 
             # c_price_van = StandardBarrierOption(TypeFlag=111, S=spot, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
@@ -375,20 +393,14 @@ with col2:
             # p_price_van_do = StandardBarrierOption(TypeFlag=211, S=spot-h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
 
 
-            call_price.append(sign_call * c_price * nominal_ * gear_call)
-            put_price.append(sign_put  * p_price * nominal_ * gear_put)
-            strip_price.append((sign_call * c_price * gear_call + sign_put * p_price * gear_put)* nominal_)
+
 
 
             # call_price_van.append (sign_call * gear_call * c_price_van * nominal_)
             # put_price_van .append (sign_put  * gear_put  * p_price_van * nominal_)
             # fwd_price     .append(sign_call * c_price_fwd + sign_put * p_price_fwd)
 
-            d_call = (c_price_up - c_price_do) / (2*h)
-            d_put = (p_price_up - p_price_do) / (2*h)
-            delta_call .append (sign_call * gear_call* d_call * nominal_)
-            delta_put  .append (sign_put  * gear_put  *d_put * nominal_)
-            delta_strip.append ((sign_call * gear_call * d_call + sign_put  * gear_put  * d_put) * nominal_)
+
 
             # d_call_van = (c_price_van_up - c_price_van_do) / (2*h)
             # d_put_van  = (p_price_van_up - p_price_van_do) / (2*h)
