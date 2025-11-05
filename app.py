@@ -252,7 +252,7 @@ with col1:
         strike = st.number_input("Strike %", value=90.0 if type_ == "KODA" else 110.0)
         barrier = st.number_input("Barrier %", value=110.0 if type_ == "KODA" else 90.0)
         gear = st.number_input("Gear", 0, 2, 2)
-        nominal = st.number_input("Nominal", value=10000.0) * gear
+        nominal = st.number_input("Nominal", value=10000.0)
         shock = st.number_input("Margin Shock", 0.01, 0.2, 0.1)
         
 
