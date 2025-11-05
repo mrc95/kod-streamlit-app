@@ -9,7 +9,16 @@ from scipy.interpolate import griddata
 
 st.set_page_config(page_title="KODA/KODD Pricing Dashboard", layout="wide")
 
-
+st.markdown("""
+    <style>
+    .block-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding-top: 5rem;
+        padding-bottom: 3rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 @njit()
 def CND(x):
