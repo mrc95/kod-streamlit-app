@@ -354,13 +354,13 @@ with col2:
     delta_put_    = []
     delta_strip_  = []
 
-    gamma_call   = []
-    gamma_put    = []
-    gamma_strip  = []
+    # gamma_call   = []
+    # gamma_put    = []
+    # gamma_strip  = []
 
-    gamma_call_   = []
-    gamma_put_    = []
-    gamma_strip_  = []
+    # gamma_call_   = []
+    # gamma_put_    = []
+    # gamma_strip_  = []
 
 
     # call_price_van  = []
@@ -392,21 +392,21 @@ with col2:
                 p_price_up = StandardBarrierOption(TypeFlag=211, S=spot + h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
                 p_price_do = StandardBarrierOption(TypeFlag=211, S=spot - h, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
 
-                call_price.append(sign_call * c_price * nominal_ )
-                put_price.append(sign_put  * p_price * nominal_ )
-                strip_price.append((sign_call * c_price + sign_put * p_price )* nominal_)
+                call_price.append(sign_call * c_price * lots  )
+                put_price.append(sign_put  * p_price * lots )
+                strip_price.append((sign_call * c_price * lots + sign_put * p_price * lots ))
 
                 d_call = (c_price_up - c_price_do) / (2*h)
                 d_put = (p_price_up - p_price_do) / (2*h)
-                delta_call .append (sign_call * d_call * nominal_)
-                delta_put  .append (sign_put    *d_put * nominal_)
-                delta_strip.append ((sign_call  * d_call + sign_put   * d_put) * nominal_)
+                delta_call .append (sign_call * d_call * lots )
+                delta_put  .append (sign_put    *d_put * lots )
+                delta_strip.append ((sign_call  * d_call *  lots + sign_put   * d_put * lots ))
                 
-                g_call = (c_price_up - 2*c_price + c_price_do) / (h**2)
-                g_put = (p_price_up - 2*p_price + p_price_do) / (h**2)
-                gamma_call .append (sign_call * g_call * nominal_)
-                gamma_put  .append (sign_put    *g_put * nominal_)
-                gamma_strip.append ((sign_call  * g_call + sign_put   * g_put) * nominal_)
+                # g_call = (c_price_up - 2*c_price + c_price_do) / (h**2)
+                # g_put = (p_price_up - 2*p_price + p_price_do) / (h**2)
+                # gamma_call .append (sign_call * g_call * nominal_)
+                # gamma_put  .append (sign_put    *g_put * nominal_)
+                # gamma_strip.append ((sign_call  * g_call * lots * gear_call + sign_put   * g_put * lots * gear_put))
 
             else:
                 c_price = StandardBarrierOption(TypeFlag=call_type, S=spot, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
@@ -418,21 +418,21 @@ with col2:
                 p_price_up = StandardBarrierOption(TypeFlag=put_type, S=spot + h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
                 p_price_do = StandardBarrierOption(TypeFlag=put_type, S=spot - h, X=strike, H=barrier, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
                 
-                call_price.append(sign_call * c_price * nominal_ * gear_call)
-                put_price.append(sign_put  * p_price * nominal_ * gear_put)
-                strip_price.append((sign_call * c_price * gear_call + sign_put * p_price * gear_put)* nominal_)
+                call_price.append(sign_call * c_price * lots * gear_call)
+                put_price.append(sign_put  * p_price * lots * gear_put)
+                strip_price.append((sign_call * c_price * gear_call * lots + sign_put * p_price * gear_put * lots))
 
                 d_call = (c_price_up - c_price_do) / (2*h)
                 d_put = (p_price_up - p_price_do) / (2*h)
-                delta_call .append (sign_call * gear_call* d_call * nominal_)
-                delta_put  .append (sign_put  * gear_put  *d_put * nominal_)
-                delta_strip.append ((sign_call * gear_call * d_call + sign_put  * gear_put  * d_put) * nominal_)
+                delta_call .append (sign_call * gear_call* d_call * lots)
+                delta_put  .append (sign_put  * gear_put  *d_put * lots)
+                delta_strip.append ((sign_call * gear_call * d_call * lots + sign_put  * gear_put  * d_put * lots) )
 
-                g_call = (c_price_up - 2*c_price + c_price_do) / (h**2)
-                g_put = (p_price_up - 2*p_price + p_price_do) / (h**2)
-                gamma_call .append (sign_call * g_call * nominal_ * gear_call)
-                gamma_put  .append (sign_put    *g_put * nominal_ * gear_put)
-                gamma_strip.append ((sign_call  * g_call * gear_call+ sign_put    * g_put * gear_put) * nominal_)
+                # g_call = (c_price_up - 2*c_price + c_price_do) / (h**2)
+                # g_put = (p_price_up - 2*p_price + p_price_do) / (h**2)
+                # gamma_call .append (sign_call * g_call * nominal_ * gear_call)
+                # gamma_put  .append (sign_put    *g_put * nominal_ * gear_put)
+                # gamma_strip.append ((sign_call  * g_call * gear_call+ sign_put    * g_put * gear_put) * nominal_)
 
             # vanilla instruments 
             # c_price_van = StandardBarrierOption(TypeFlag=111, S=spot, X=strike, H=1e-5, K=0, Time=maturity, r=rate, b=rate - div, sigma=vol, Fwd_Time=maturity)
@@ -459,21 +459,21 @@ with col2:
             # delta_call_van .append (sign_call * gear_call* d_call_van * nominal_)
             # delta_put_van .append (sign_put  * gear_put  *d_put_van * nominal_)
 
-        call_price_.append(np.sum(call_price) / (gear))
-        put_price_.append(np.sum(put_price) / (gear))
-        strip_price_.append(np.sum(strip_price) / (gear))
+        call_price_.append(np.sum(call_price) / (1))
+        put_price_.append(np.sum(put_price) / (1))
+        strip_price_.append(np.sum(strip_price) / (1))
         # fwd_price_.append(np.sum(fwd_price) / (len(fwd_price)))
 
         # call_price_van_.append(np.sum(call_price_van) / (gear_call))
         # put_price_van_.append(np.sum(put_price_van) / (gear_put))
 
-        delta_call_.append(np.sum(delta_call) / (gear_call))
-        delta_put_.append(np.sum(delta_put) / (gear_put))
-        delta_strip_.append(np.sum(delta_strip) / (gear))
+        delta_call_.append(np.sum(delta_call) / (1))
+        delta_put_.append(np.sum(delta_put) / (1))
+        delta_strip_.append(np.sum(delta_strip) / (1))
 
-        gamma_call_.append(np.sum(gamma_call) / (gear_call))
-        gamma_put_.append(np.sum(gamma_put) / (gear_put))
-        gamma_strip_.append(np.sum(gamma_strip) / (gear))
+        # gamma_call_.append(np.sum(gamma_call) / (1))
+        # gamma_put_.append(np.sum(gamma_put) / (1))
+        # gamma_strip_.append(np.sum(gamma_strip) / (1))
 
         # delta_call_van_.append(np.sum(delta_call_van) / (gear_call))
         # delta_put_van_.append(np.sum(delta_put_van) / (gear_put))
@@ -488,9 +488,9 @@ with col2:
         delta_put    = []
         delta_strip  = []
 
-        gamma_call   = []
-        gamma_put    = []
-        gamma_strip  = []
+        # gamma_call   = []
+        # gamma_put    = []
+        # gamma_strip  = []
 
         # delta_call_van   = []
         # delta_put_van    = []
@@ -574,11 +574,11 @@ with container_2d:
         # )
 
         if periods == 1 and periods_guaranteed == 1:
-            strike_notional = np.where(spots_ <= barrier, strike * nominal , 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, strike * nominal )
-            spot_notional = np.where(spots_ <= barrier, spots_ * nominal , 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, spots_ * nominal )
+            strike_notional = np.where(spots_ <= barrier, strike * lots * gear * periods , 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, strike * lots * gear * periods)
+            spot_notional = np.where(spots_ <= barrier, spots_ * lots * gear * periods , 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, spots_ * lots * gear* periods )
         else:
-            strike_notional = np.where(spots_ <= barrier, strike * nominal * gear, 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, strike * nominal * gear)
-            spot_notional = np.where(spots_ <= barrier, spots_ * nominal * gear, 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, spots_ * nominal * gear)
+            strike_notional = np.where(spots_ <= barrier, strike * lots * gear * periods, 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, strike * lots * gear* periods)
+            spot_notional = np.where(spots_ <= barrier, spots_ * lots * gear* periods, 0) if type_ == 'Accumulator' else np.where(spots_ <= barrier, 0, spots_ * lots * gear* periods)
 
         kod_mtm = dict(zip(spots, strip_price_))
         kod_delta = dict(zip(spots, delta_strip_))
@@ -648,12 +648,12 @@ with container_2d:
             hovertemplate="<b>Δ Proxy:</b> %{y:,.0f}<br>% From Actual: %{customdata[0]:+.2f}%<extra></extra>"
         ))
 
-        show_gamma_proxy = st.toggle(
-            "Show Δ Gamma Proxy", 
-            value=False, 
-            key="show_gamma_toggle", 
-            help="Toggle to display Delta & Gamma Proxy."
-        )
+        # show_gamma_proxy = st.toggle(
+        #     "Show Δ Gamma Proxy", 
+        #     value=False, 
+        #     key="show_gamma_toggle", 
+        #     help="Toggle to display Delta & Gamma Proxy."
+        # )
 
         # if show_gamma_proxy:
         #     # Δ Proxy Gamma
