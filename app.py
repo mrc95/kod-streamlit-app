@@ -328,7 +328,7 @@ with col2:
     spots_minus = spots_ * (1-shock)
     spots = np.unique(np.concatenate([spots_, spots_plus, spots_minus]))
 
-    strips_mat = np.arange(1, periods + 1) / periods
+    strips_mat = np.arange(1, periods + 1) / 52
     guaranteed_mats = strips_mat[:periods_guaranteed]
     sign_call, sign_put = (1, -1) if type_ == "Accumulator" else (-1, 1)
     gear_call, gear_put = (1, gear) if type_ == "Accumulator" else (gear, 1)
